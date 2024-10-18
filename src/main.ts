@@ -51,3 +51,13 @@ artCanvas.addEventListener('mousedown', startDrawing);
 artCanvas.addEventListener('mousemove', draw);
 artCanvas.addEventListener('mouseup', stopDrawing);
 artCanvas.addEventListener('mouseleave', stopDrawing);
+
+// Clear Button
+const clearButton = document.createElement('button');
+clearButton.textContent = 'Clear';
+clearButton.addEventListener('click', () => {
+    ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.closePath();
+});
+app.append(clearButton);
