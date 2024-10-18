@@ -19,30 +19,30 @@ artCanvas.width = 256;
 app.append(artCanvas);
 
 // Point Structure
-type Point = {
-    x: number,
-    y: number
-};
+type Point = { x: number, y: number };
 let strokes: Point[][] = [];
 let currentStroke: Point[] = [];
+let redoStack: Point[][] = [];
 
-// Mouse Events
 let drawing = false;
-const startDrawing = (event: MouseEvent) => {
-    drawing = true;
-    draw(event);
-};
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
-    throw new Error('Failed to retrieve 2d context from canvas.');
+    throw new Error('Failed to retrieve 2D context from canvas.');
 }
+
+// Initialize the canvas
 ctx.fillStyle = "white";
-ctx.fillRect(0, 0, 256, 256);
-const draw = (MouseEvent) => {
+ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
+
+// Draw function
+const renderCanvas = () => {
+    ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
+    ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
+
     ctx.strokeStyle = 'black';
     ctx.lineWidth = 2;
-    ctx.fillRect(0, 0, 256, 256);
+
     strokes.forEach(stroke => {
         ctx.beginPath();
         if (stroke.length > 0) {
@@ -51,45 +51,73 @@ const draw = (MouseEvent) => {
                 ctx.lineTo(point.x, point.y);
             });
             ctx.stroke();
+            ctx.closePath();
         }
     });
 };
-const dispatchDrawingChangeEvent = () => {
-    const event = new CustomEvent('drawing-changed');
-    artCanvas.dispatchEvent(event);
-}
+
+// Handle drawing actions
 const stopDrawing = () => {
     drawing = false;
-    if (currentStroke.length >0) {
+    if (currentStroke.length > 0) {
         strokes.push(currentStroke);
         currentStroke = [];
+        redoStack = [];
     }
+    renderCanvas();
 };
 
 // Register the mouse event listeners on the canvas
 artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
     drawing = true;
-    currentStroke = [{x: event.offsetX, y: event.offsetY}]
-    strokes.push(currentStroke);  // Start a new stroke immediately
-    dispatchDrawingChangeEvent(); // Immediate update
+    currentStroke = [{ x: event.offsetX, y: event.offsetY }];
+    ctx.beginPath();
+    ctx.moveTo(event.offsetX, event.offsetY);
 });
+
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
     if (drawing) {
-        currentStroke.push({x: event.offsetX, y: event.offsetY});
-        dispatchDrawingChangeEvent();
+        const point = { x: event.offsetX, y: event.offsetY };
+        currentStroke.push(point);
+        ctx.lineTo(point.x, point.y);
+        ctx.stroke();
     }
 });
+
 artCanvas.addEventListener('mouseup', stopDrawing);
 artCanvas.addEventListener('mouseleave', stopDrawing);
-artCanvas.addEventListener('drawing-changed', draw);
+
 // Clear Button
 const clearButton = document.createElement('button');
 clearButton.textContent = 'Clear';
 clearButton.addEventListener('click', () => {
     strokes = [];
     currentStroke = [];
-    ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.closePath();
+    redoStack = [];
+    renderCanvas();
 });
 app.append(clearButton);
+
+// Undo Button
+const undoButton = document.createElement('button');
+undoButton.textContent = 'Undo';
+undoButton.addEventListener('click', () => {
+    if (strokes.length > 0) {
+        const lastStroke = strokes.pop();
+        if (lastStroke) redoStack.push(lastStroke);
+        renderCanvas();
+    }
+});
+app.append(undoButton);
+
+// Redo Button
+const redoButton = document.createElement('button');
+redoButton.textContent = 'Redo';
+redoButton.addEventListener('click', () => {
+    if (redoStack.length > 0) {
+        const strokeToRedo = redoStack.pop();
+        if (strokeToRedo) strokes.push(strokeToRedo);
+        renderCanvas();
+    }
+});
+app.append(redoButton);
