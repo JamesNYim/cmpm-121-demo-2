@@ -27,7 +27,7 @@ interface Drawable {
     display(ctx: CanvasRenderingContext2D): void;
 }
 // Factory function for creating a marker line
-function createMarkerLine(initialPoint: Point): Drawable {
+function createMarkerLine(initialPoint: Point, thickness: number): Drawable {
     const points: Point[] = [initialPoint];
 
     return {
@@ -37,7 +37,7 @@ function createMarkerLine(initialPoint: Point): Drawable {
         },
         display(ctx: CanvasRenderingContext2D) {
             if (points.length === 0) return;
-
+            ctx.lineWidth = thickness;
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
             points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -49,7 +49,7 @@ function createMarkerLine(initialPoint: Point): Drawable {
 let strokes: Drawable[] = [];
 let currentStroke: Drawable | null = null; 
 let redoStack: Drawable[] = [];
-
+let currentThickness = 1;
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
@@ -66,7 +66,6 @@ const renderCanvas = () => {
     ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
 
     ctx.strokeStyle = 'black';
-    ctx.lineWidth = 2;
 
     strokes.forEach(stroke => stroke.display(ctx));
 };
@@ -87,7 +86,7 @@ const stopDrawing = () => {
 artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
     drawing = true;
     const startPoint = { x: event.offsetX, y: event.offsetY };
-    currentStroke = createMarkerLine(startPoint);
+    currentStroke = createMarkerLine(startPoint, currentThickness);
     ctx.beginPath();
     ctx.moveTo(event.offsetX, event.offsetY);
 });
@@ -103,6 +102,23 @@ artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
 
 artCanvas.addEventListener('mouseup', stopDrawing);
 artCanvas.addEventListener('mouseleave', stopDrawing);
+
+// Tool Buttons
+const createToolButton = (text: string, thickness: number) => {
+    const button = document.createElement('button');
+    button.textContent = text;
+    button.addEventListener('click', () => {
+        currentThickness = thickness;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
+        button.classList.add('selectedTool');
+    });
+    button.classList.add('tool-button');
+    app.append(button);
+};
+
+// Create the tool buttons
+createToolButton('Thin', 1);
+createToolButton('Thick', 5);
 
 // Clear Button
 const clearButton = document.createElement('button');
