@@ -18,15 +18,14 @@ artCanvas.height = 256;
 artCanvas.width = 256;
 app.append(artCanvas);
 
-// Markerline class
-// Point Structure
 type Point = { x: number, y: number };
+
 interface Drawable {
     points: Point[];
     drag(point: Point): void;
     display(ctx: CanvasRenderingContext2D): void;
 }
-// Factory function for creating a marker line
+
 function createMarkerLine(initialPoint: Point, thickness: number): Drawable {
     const points: Point[] = [initialPoint];
 
@@ -37,6 +36,7 @@ function createMarkerLine(initialPoint: Point, thickness: number): Drawable {
         },
         display(ctx: CanvasRenderingContext2D) {
             if (points.length === 0) return;
+
             ctx.lineWidth = thickness;
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
@@ -46,21 +46,20 @@ function createMarkerLine(initialPoint: Point, thickness: number): Drawable {
         }
     };
 }
+
 let strokes: Drawable[] = [];
-let currentStroke: Drawable | null = null; 
+let currentStroke: Drawable | null = null;
 let redoStack: Drawable[] = [];
-let currentThickness = 1;
+let currentThickness = 1; // Default to a thin marker
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
     throw new Error('Failed to retrieve 2D context from canvas.');
 }
 
-// Initialize the canvas
 ctx.fillStyle = "white";
 ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
 
-// Draw function
 const renderCanvas = () => {
     ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
     ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
@@ -70,32 +69,52 @@ const renderCanvas = () => {
     strokes.forEach(stroke => stroke.display(ctx));
 };
 
+// Function to create the square cursor image
+function createSquareCursor(thickness: number): string {
+    const cursorCanvas = document.createElement('canvas');
+    cursorCanvas.width = thickness * 2; // Size reflects thickness
+    cursorCanvas.height = thickness * 2;
+    const cursorCtx = cursorCanvas.getContext('2d');
+
+    if (cursorCtx) {
+        cursorCtx.fillStyle = 'black';
+        cursorCtx.fillRect(0, 0, thickness * 2, thickness * 2); // Draw a filled square
+    }
+
+    return cursorCanvas.toDataURL('image/png');
+}
+
+function setCursor(thickness: number) {
+    const cursorURL = createSquareCursor(thickness);
+    artCanvas.style.cursor = `url(${cursorURL}) ${thickness / 2} ${thickness / 2}, auto`;
+}
+
 let drawing = false;
-// Handle drawing actions
+
 const stopDrawing = () => {
     drawing = false;
     if (currentStroke) {
         strokes.push(currentStroke);
-        currentStroke = null 
+        currentStroke = null;
         redoStack = [];
     }
     renderCanvas();
 };
 
-// Register the mouse event listeners on the canvas
 artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
     drawing = true;
     const startPoint = { x: event.offsetX, y: event.offsetY };
     currentStroke = createMarkerLine(startPoint, currentThickness);
     ctx.beginPath();
-    ctx.moveTo(event.offsetX, event.offsetY);
+    ctx.moveTo(startPoint.x, startPoint.y);
 });
 
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
+    const nextPoint = { x: event.offsetX, y: event.offsetY };
+
     if (drawing && currentStroke) {
-        const point = { x: event.offsetX, y: event.offsetY };
-        currentStroke.drag(point);
-        ctx.lineTo(point.x, point.y);
+        currentStroke.drag(nextPoint);
+        ctx.lineTo(nextPoint.x, nextPoint.y);
         ctx.stroke();
     }
 });
@@ -103,12 +122,13 @@ artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
 artCanvas.addEventListener('mouseup', stopDrawing);
 artCanvas.addEventListener('mouseleave', stopDrawing);
 
-// Tool Buttons
 const createToolButton = (text: string, thickness: number) => {
     const button = document.createElement('button');
     button.textContent = text;
     button.addEventListener('click', () => {
         currentThickness = thickness;
+        setCursor(thickness);
+
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
         button.classList.add('selectedTool');
     });
@@ -116,11 +136,9 @@ const createToolButton = (text: string, thickness: number) => {
     app.append(button);
 };
 
-// Create the tool buttons
-createToolButton('Thin', 1);
-createToolButton('Thick', 5);
+createToolButton('Thin', 4);
+createToolButton('Thick', 8);
 
-// Clear Button
 const clearButton = document.createElement('button');
 clearButton.textContent = 'Clear';
 clearButton.addEventListener('click', () => {
@@ -131,7 +149,6 @@ clearButton.addEventListener('click', () => {
 });
 app.append(clearButton);
 
-// Undo Button
 const undoButton = document.createElement('button');
 undoButton.textContent = 'Undo';
 undoButton.addEventListener('click', () => {
@@ -143,7 +160,6 @@ undoButton.addEventListener('click', () => {
 });
 app.append(undoButton);
 
-// Redo Button
 const redoButton = document.createElement('button');
 redoButton.textContent = 'Redo';
 redoButton.addEventListener('click', () => {
@@ -154,3 +170,6 @@ redoButton.addEventListener('click', () => {
     }
 });
 app.append(redoButton);
+
+// Set initial cursor
+setCursor(currentThickness);
