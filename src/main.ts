@@ -18,13 +18,38 @@ artCanvas.height = 256;
 artCanvas.width = 256;
 app.append(artCanvas);
 
+// Markerline class
 // Point Structure
 type Point = { x: number, y: number };
-let strokes: Point[][] = [];
-let currentStroke: Point[] = [];
-let redoStack: Point[][] = [];
+interface Drawable {
+    points: Point[];
+    drag(point: Point): void;
+    display(ctx: CanvasRenderingContext2D): void;
+}
+// Factory function for creating a marker line
+function createMarkerLine(initialPoint: Point): Drawable {
+    const points: Point[] = [initialPoint];
 
-let drawing = false;
+    return {
+        points,
+        drag(point: Point) {
+            points.push(point);
+        },
+        display(ctx: CanvasRenderingContext2D) {
+            if (points.length === 0) return;
+
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.stroke();
+            ctx.closePath();
+        }
+    };
+}
+let strokes: Drawable[] = [];
+let currentStroke: Drawable | null = null; 
+let redoStack: Drawable[] = [];
+
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
@@ -43,25 +68,16 @@ const renderCanvas = () => {
     ctx.strokeStyle = 'black';
     ctx.lineWidth = 2;
 
-    strokes.forEach(stroke => {
-        ctx.beginPath();
-        if (stroke.length > 0) {
-            ctx.moveTo(stroke[0].x, stroke[0].y);
-            stroke.forEach(point => {
-                ctx.lineTo(point.x, point.y);
-            });
-            ctx.stroke();
-            ctx.closePath();
-        }
-    });
+    strokes.forEach(stroke => stroke.display(ctx));
 };
 
+let drawing = false;
 // Handle drawing actions
 const stopDrawing = () => {
     drawing = false;
-    if (currentStroke.length > 0) {
+    if (currentStroke) {
         strokes.push(currentStroke);
-        currentStroke = [];
+        currentStroke = null 
         redoStack = [];
     }
     renderCanvas();
@@ -70,15 +86,16 @@ const stopDrawing = () => {
 // Register the mouse event listeners on the canvas
 artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
     drawing = true;
-    currentStroke = [{ x: event.offsetX, y: event.offsetY }];
+    const startPoint = { x: event.offsetX, y: event.offsetY };
+    currentStroke = createMarkerLine(startPoint);
     ctx.beginPath();
     ctx.moveTo(event.offsetX, event.offsetY);
 });
 
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
-    if (drawing) {
+    if (drawing && currentStroke) {
         const point = { x: event.offsetX, y: event.offsetY };
-        currentStroke.push(point);
+        currentStroke.drag(point);
         ctx.lineTo(point.x, point.y);
         ctx.stroke();
     }
@@ -92,7 +109,7 @@ const clearButton = document.createElement('button');
 clearButton.textContent = 'Clear';
 clearButton.addEventListener('click', () => {
     strokes = [];
-    currentStroke = [];
+    currentStroke = null;
     redoStack = [];
     renderCanvas();
 });
