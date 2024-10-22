@@ -1,6 +1,6 @@
 import "./style.css";
 
-const APP_NAME = "Sticker Drawer";
+const APP_NAME = "Sticker Sketchbook";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 document.title = APP_NAME;
@@ -26,19 +26,19 @@ interface Drawable {
     display(ctx: CanvasRenderingContext2D): void;
 }
 
-interface StickerCommand extends Drawable {
+interface EmojiCommand extends Drawable {
     position: Point;
     setPosition(point: Point): void;
 }
 
-function createSticker(emoji: string, position: Point): StickerCommand {
+function createEmoji(emoji: string, position: Point): EmojiCommand {
     return {
         position,
         setPosition(point: Point) {
             this.position = point;
         },
         display(ctx: CanvasRenderingContext2D) {
-            ctx.font = '24px Arial';
+            ctx.font = '30px Arial'; // Adjusted emoji size for clearer visibility
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(emoji, this.position.x, this.position.y);
@@ -46,11 +46,11 @@ function createSticker(emoji: string, position: Point): StickerCommand {
     };
 }
 
-interface MarkerLine extends Drawable {
+interface BrushStroke extends Drawable {
     drag(point: Point): void;
 }
 
-function createMarkerLine(initialPoint: Point, thickness: number): MarkerLine {
+function createBrushStroke(initialPoint: Point, thickness: number): BrushStroke {
     const points: Point[] = [initialPoint];
 
     return {
@@ -70,14 +70,14 @@ function createMarkerLine(initialPoint: Point, thickness: number): MarkerLine {
     };
 }
 
-let strokes: Drawable[] = [];
-let currentStroke: MarkerLine | null = null;
-let currentSticker: StickerCommand | null = null;
+let drawings: Drawable[] = [];
+let currentBrushStroke: BrushStroke | null = null;
+let currentEmojiCommand: EmojiCommand | null = null;
 let redoStack: Drawable[] = [];
-let currentThickness = 1; // Default to a thin marker
+let currentThickness = 2; // More distinct thin marker
 let currentEmoji = ''; // Tracks the currently selected emoji
 
-const stickers: string[] = ['😀', '🔥', '🌟']; // Initial sticker collection
+const emojis: string[] = ['😊', '✨', '🐱', '🎨', '🌈']; // More varied and fun emojis
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
@@ -93,8 +93,8 @@ const renderCanvas = () => {
 
     ctx.strokeStyle = 'black';
 
-    strokes.forEach(stroke => stroke.display(ctx));
-    if (currentSticker) currentSticker.display(ctx);
+    drawings.forEach(drawable => drawable.display(ctx));
+    if (currentEmojiCommand) currentEmojiCommand.display(ctx);
 };
 
 function createSquareCursor(thickness: number): string {
@@ -120,14 +120,14 @@ let drawing = false;
 
 const stopDrawing = () => {
     drawing = false;
-    if (currentStroke) {
-        strokes.push(currentStroke);
-        currentStroke = null;
+    if (currentBrushStroke) {
+        drawings.push(currentBrushStroke);
+        currentBrushStroke = null;
         redoStack = [];
     }
-    if (currentSticker) {
-        strokes.push(currentSticker);
-        currentSticker = null;
+    if (currentEmojiCommand) {
+        drawings.push(currentEmojiCommand);
+        currentEmojiCommand = null;
     }
     renderCanvas();
 };
@@ -136,10 +136,10 @@ artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
     const pointerPosition = { x: event.offsetX, y: event.offsetY };
 
     if (currentEmoji) {
-        currentSticker = createSticker(currentEmoji, pointerPosition);
+        currentEmojiCommand = createEmoji(currentEmoji, pointerPosition);
     } else {
         drawing = true;
-        currentStroke = createMarkerLine(pointerPosition, currentThickness);
+        currentBrushStroke = createBrushStroke(pointerPosition, currentThickness);
         ctx.beginPath();
         ctx.moveTo(pointerPosition.x, pointerPosition.y);
     }
@@ -148,13 +148,13 @@ artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
     const nextPoint = { x: event.offsetX, y: event.offsetY };
 
-    if (currentSticker) {
-        currentSticker.setPosition(nextPoint);
+    if (currentEmojiCommand) {
+        currentEmojiCommand.setPosition(nextPoint);
         renderCanvas();
     }
 
-    if (drawing && currentStroke) {
-        currentStroke.drag(nextPoint);
+    if (drawing && currentBrushStroke) {
+        currentBrushStroke.drag(nextPoint);
         ctx.lineTo(nextPoint.x, nextPoint.y);
         ctx.stroke();
     }
@@ -178,12 +178,12 @@ const createToolButton = (text: string, thickness: number) => {
     app.append(button);
 };
 
-// Create the tool buttons
-createToolButton('Thin', 8);
-createToolButton('Thick', 16);
+// Create the brush buttons
+createToolButton('Fine Line', 4);
+createToolButton('Bold Line', 12);
 
-// Create sticker buttons from array
-const createStickerButton = (emoji: string) => {
+// Create emoji buttons from array
+const createEmojiButton = (emoji: string) => {
     const button = document.createElement('button');
     button.textContent = emoji;
     button.addEventListener('click', () => {
@@ -200,20 +200,20 @@ const createStickerButton = (emoji: string) => {
     app.append(button);
 };
 
-// Initialize predefined stickers
-stickers.forEach(createStickerButton);
+// Initialize predefined emojis
+emojis.forEach(createEmojiButton);
 
-// Button to add a custom sticker
-const addStickerButton = document.createElement('button');
-addStickerButton.textContent = 'Add Sticker';
-addStickerButton.addEventListener('click', () => {
-    const newSticker = prompt('Enter your custom sticker:');
-    if (newSticker) {
-        stickers.push(newSticker);
-        createStickerButton(newSticker);
+// Button to add a custom emoji
+const addEmojiButton = document.createElement('button');
+addEmojiButton.textContent = 'Add Emoji';
+addEmojiButton.addEventListener('click', () => {
+    const newEmoji = prompt('Enter your custom emoji:');
+    if (newEmoji) {
+        emojis.push(newEmoji);
+        createEmojiButton(newEmoji);
     }
 });
-app.append(addStickerButton);
+app.append(addEmojiButton);
 
 // Export Button
 const exportButton = document.createElement('button');
@@ -227,12 +227,10 @@ exportButton.addEventListener('click', () => {
     if (exportCtx) {
         exportCtx.fillStyle = 'white';
         exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-        exportCtx.scale(4, 4); // Scale the drawings to fit the larger canvas
+        exportCtx.scale(4, 4);
 
-        // Execute drawables on the new context
-        strokes.forEach(stroke => stroke.display(exportCtx));
+        drawings.forEach(drawable => drawable.display(exportCtx));
 
-        // Create a file and trigger download
         exportCanvas.toBlob(blob => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -249,8 +247,8 @@ app.append(exportButton);
 const clearButton = document.createElement('button');
 clearButton.textContent = 'Clear';
 clearButton.addEventListener('click', () => {
-    strokes = [];
-    currentStroke = null;
+    drawings = [];
+    currentBrushStroke = null;
     redoStack = [];
     renderCanvas();
 });
@@ -260,9 +258,9 @@ app.append(clearButton);
 const undoButton = document.createElement('button');
 undoButton.textContent = 'Undo';
 undoButton.addEventListener('click', () => {
-    if (strokes.length > 0) {
-        const lastStroke = strokes.pop();
-        if (lastStroke) redoStack.push(lastStroke);
+    if (drawings.length > 0) {
+        const lastDrawing = drawings.pop();
+        if (lastDrawing) redoStack.push(lastDrawing);
         renderCanvas();
     }
 });
@@ -273,8 +271,8 @@ const redoButton = document.createElement('button');
 redoButton.textContent = 'Redo';
 redoButton.addEventListener('click', () => {
     if (redoStack.length > 0) {
-        const strokeToRedo = redoStack.pop();
-        if (strokeToRedo) strokes.push(strokeToRedo);
+        const drawingToRedo = redoStack.pop();
+        if (drawingToRedo) drawings.push(drawingToRedo);
         renderCanvas();
     }
 });
@@ -284,4 +282,5 @@ artCanvas.addEventListener('tool-moved', () => {
     console.log('Tool moved event fired');
 });
 
+// Initial cursor setup
 setCursor(currentThickness);
