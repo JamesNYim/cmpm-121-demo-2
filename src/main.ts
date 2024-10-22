@@ -3,22 +3,18 @@ import "./style.css";
 const APP_NAME = "Sticker Sketchbook";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
-document.title = APP_NAME;
-app.innerHTML = APP_NAME;
-
-// App Title Header
+// Header
 const appTitle = document.createElement("h1");
 appTitle.textContent = APP_NAME;
 app.append(appTitle);
 
-// Canvas
+// Canvas setup
 const artCanvas = document.createElement("canvas");
 artCanvas.id = 'artCanvas';
 artCanvas.height = 256;
 artCanvas.width = 256;
 app.append(artCanvas);
 
-// Point Structure
 type Point = { x: number, y: number };
 
 // Interfaces
@@ -29,31 +25,39 @@ interface Drawable {
 interface EmojiCommand extends Drawable {
     position: Point;
     setPosition(point: Point): void;
+    rotation: number;
 }
 
-function createEmoji(emoji: string, position: Point): EmojiCommand {
+function createEmoji(emoji: string, position: Point, rotation: number): EmojiCommand {
     return {
         position,
+        rotation,
         setPosition(point: Point) {
             this.position = point;
         },
         display(ctx: CanvasRenderingContext2D) {
-            ctx.font = '30px Arial'; // Adjusted emoji size for clearer visibility
+            ctx.save();
+            ctx.translate(this.position.x, this.position.y);
+            ctx.rotate(this.rotation * Math.PI / 180);
+            ctx.font = '30px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(emoji, this.position.x, this.position.y);
+            ctx.fillText(emoji, 0, 0);
+            ctx.restore();
         }
     };
 }
 
 interface BrushStroke extends Drawable {
     drag(point: Point): void;
+    color: string;
 }
 
-function createBrushStroke(initialPoint: Point, thickness: number): BrushStroke {
+function createBrushStroke(initialPoint: Point, thickness: number, color: string): BrushStroke {
     const points: Point[] = [initialPoint];
 
     return {
+        color,
         drag(point: Point) {
             points.push(point);
         },
@@ -61,6 +65,7 @@ function createBrushStroke(initialPoint: Point, thickness: number): BrushStroke 
             if (points.length === 0) return;
 
             ctx.lineWidth = thickness;
+            ctx.strokeStyle = this.color;
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
             points.forEach(p => ctx.lineTo(p.x, p.y));
@@ -74,10 +79,11 @@ let drawings: Drawable[] = [];
 let currentBrushStroke: BrushStroke | null = null;
 let currentEmojiCommand: EmojiCommand | null = null;
 let redoStack: Drawable[] = [];
-let currentThickness = 2; // More distinct thin marker
-let currentEmoji = ''; // Tracks the currently selected emoji
-
-const emojis: string[] = ['😊', '✨', '🐱', '🎨', '🌈']; // More varied and fun emojis
+let currentThickness = 4;
+let currentColor = "#000000";
+let currentEmoji = '';
+let emojiRotation = 0;
+const emojis = ['😊', '✨', '🐱', '🎨', '🌈'];
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
@@ -87,38 +93,57 @@ if (!ctx) {
 ctx.fillStyle = "white";
 ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
 
-const renderCanvas = () => {
+function renderCanvas() {
     ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
+    ctx.fillStyle = "white";
     ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
 
-    ctx.strokeStyle = 'black';
-
     drawings.forEach(drawable => drawable.display(ctx));
-    if (currentEmojiCommand) currentEmojiCommand.display(ctx);
-};
+}
 
 function createSquareCursor(thickness: number): string {
     const cursorCanvas = document.createElement('canvas');
     cursorCanvas.width = thickness * 2;
     cursorCanvas.height = thickness * 2;
     const cursorCtx = cursorCanvas.getContext('2d');
-
     if (cursorCtx) {
-        cursorCtx.fillStyle = 'black';
+        cursorCtx.fillStyle = currentColor;
         cursorCtx.fillRect(0, 0, thickness * 2, thickness * 2);
     }
-
     return cursorCanvas.toDataURL('image/png');
 }
 
-function setCursor(thickness: number) {
+function setCursorForBrush(thickness: number) {
     const cursorURL = createSquareCursor(thickness);
     artCanvas.style.cursor = `url(${cursorURL}) ${thickness / 2} ${thickness / 2}, auto`;
 }
 
+function setCursorForEmoji(emoji: string, rotation: number) {
+    const size = 64;  // Larger size for visibility
+    const cursorCanvas = document.createElement('canvas');
+    cursorCanvas.width = size;
+    cursorCanvas.height = size;
+    const cursorCtx = cursorCanvas.getContext('2d');
+
+    if (cursorCtx) {
+        cursorCtx.clearRect(0, 0, size, size);
+        cursorCtx.save();
+        cursorCtx.translate(size / 2, size / 2);
+        cursorCtx.rotate((Math.PI / 180) * rotation);
+        cursorCtx.font = '30px Arial';
+        cursorCtx.textAlign = 'center';
+        cursorCtx.textBaseline = 'middle';
+        cursorCtx.fillText(emoji, 0, 0);
+        cursorCtx.restore();
+    }
+
+    const cursorURL = cursorCanvas.toDataURL('image/png');
+    artCanvas.style.cursor = `url(${cursorURL}) ${size / 2} ${size / 2}, auto`;
+}
+
 let drawing = false;
 
-const stopDrawing = () => {
+function stopDrawing() {
     drawing = false;
     if (currentBrushStroke) {
         drawings.push(currentBrushStroke);
@@ -130,34 +155,30 @@ const stopDrawing = () => {
         currentEmojiCommand = null;
     }
     renderCanvas();
-};
+}
 
 artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
     const pointerPosition = { x: event.offsetX, y: event.offsetY };
 
     if (currentEmoji) {
-        currentEmojiCommand = createEmoji(currentEmoji, pointerPosition);
+        currentEmojiCommand = createEmoji(currentEmoji, pointerPosition, emojiRotation);
     } else {
         drawing = true;
-        currentBrushStroke = createBrushStroke(pointerPosition, currentThickness);
+        currentBrushStroke = createBrushStroke(pointerPosition, currentThickness, currentColor);
+
         ctx.beginPath();
         ctx.moveTo(pointerPosition.x, pointerPosition.y);
     }
 });
 
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
+    if (!drawing || !currentBrushStroke) return;
+
     const nextPoint = { x: event.offsetX, y: event.offsetY };
 
-    if (currentEmojiCommand) {
-        currentEmojiCommand.setPosition(nextPoint);
-        renderCanvas();
-    }
-
-    if (drawing && currentBrushStroke) {
-        currentBrushStroke.drag(nextPoint);
-        ctx.lineTo(nextPoint.x, nextPoint.y);
-        ctx.stroke();
-    }
+    currentBrushStroke.drag(nextPoint);
+    ctx.lineTo(nextPoint.x, nextPoint.y);
+    ctx.stroke();
 });
 
 artCanvas.addEventListener('mouseup', stopDrawing);
@@ -168,9 +189,8 @@ const createToolButton = (text: string, thickness: number) => {
     button.textContent = text;
     button.addEventListener('click', () => {
         currentThickness = thickness;
+        setCursorForBrush(thickness);
         currentEmoji = '';
-        setCursor(thickness);
-
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
         button.classList.add('selectedTool');
     });
@@ -178,32 +198,27 @@ const createToolButton = (text: string, thickness: number) => {
     app.append(button);
 };
 
-// Create the brush buttons
 createToolButton('Fine Line', 4);
 createToolButton('Bold Line', 12);
 
-// Create emoji buttons from array
 const createEmojiButton = (emoji: string) => {
     const button = document.createElement('button');
     button.textContent = emoji;
     button.addEventListener('click', () => {
         currentEmoji = emoji;
-        currentThickness = 0;
+        emojiRotation = Math.random() * 360;  // Randomize rotation angle
+
+        setCursorForEmoji(emoji, emojiRotation);
 
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
         button.classList.add('selectedTool');
-
-        const event = new CustomEvent('tool-moved');
-        artCanvas.dispatchEvent(event);
     });
     button.classList.add('tool-button');
     app.append(button);
 };
 
-// Initialize predefined emojis
 emojis.forEach(createEmojiButton);
 
-// Button to add a custom emoji
 const addEmojiButton = document.createElement('button');
 addEmojiButton.textContent = 'Add Emoji';
 addEmojiButton.addEventListener('click', () => {
@@ -215,7 +230,6 @@ addEmojiButton.addEventListener('click', () => {
 });
 app.append(addEmojiButton);
 
-// Export Button
 const exportButton = document.createElement('button');
 exportButton.textContent = 'Export';
 exportButton.addEventListener('click', () => {
@@ -223,14 +237,11 @@ exportButton.addEventListener('click', () => {
     exportCanvas.width = 1024;
     exportCanvas.height = 1024;
     const exportCtx = exportCanvas.getContext('2d');
-
     if (exportCtx) {
         exportCtx.fillStyle = 'white';
         exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
         exportCtx.scale(4, 4);
-
         drawings.forEach(drawable => drawable.display(exportCtx));
-
         exportCanvas.toBlob(blob => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -243,7 +254,6 @@ exportButton.addEventListener('click', () => {
 });
 app.append(exportButton);
 
-// Clear Button
 const clearButton = document.createElement('button');
 clearButton.textContent = 'Clear';
 clearButton.addEventListener('click', () => {
@@ -254,7 +264,6 @@ clearButton.addEventListener('click', () => {
 });
 app.append(clearButton);
 
-// Undo Button
 const undoButton = document.createElement('button');
 undoButton.textContent = 'Undo';
 undoButton.addEventListener('click', () => {
@@ -266,7 +275,6 @@ undoButton.addEventListener('click', () => {
 });
 app.append(undoButton);
 
-// Redo Button
 const redoButton = document.createElement('button');
 redoButton.textContent = 'Redo';
 redoButton.addEventListener('click', () => {
@@ -278,9 +286,13 @@ redoButton.addEventListener('click', () => {
 });
 app.append(redoButton);
 
-artCanvas.addEventListener('tool-moved', () => {
-    console.log('Tool moved event fired');
+const colorPicker = document.createElement('input');
+colorPicker.type = 'color';
+colorPicker.value = currentColor;
+colorPicker.addEventListener('input', () => {
+    currentColor = colorPicker.value;
+    setCursorForBrush(currentThickness);
 });
+app.append(colorPicker);
 
-// Initial cursor setup
-setCursor(currentThickness);
+setCursorForBrush(currentThickness);
