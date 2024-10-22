@@ -29,7 +29,6 @@ interface StickerCommand extends Drawable {
     setPosition(point: Point): void;
 }
 
-// Factory to create a sticker on a given position
 function createSticker(emoji: string, position: Point): StickerCommand {
     return {
         position,
@@ -76,6 +75,8 @@ let redoStack: Drawable[] = [];
 let currentThickness = 1; // Default to a thin marker
 let currentEmoji = ''; // Tracks the currently selected emoji
 
+const stickers: string[] = ['😀', '🔥', '🌟']; // Initial sticker collection
+
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
     throw new Error('Failed to retrieve 2D context from canvas.');
@@ -94,7 +95,6 @@ const renderCanvas = () => {
     if (currentSticker) currentSticker.display(ctx);
 };
 
-// Function to create the square cursor image
 function createSquareCursor(thickness: number): string {
     const cursorCanvas = document.createElement('canvas');
     cursorCanvas.width = thickness * 2;
@@ -146,7 +146,6 @@ artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
     const nextPoint = { x: event.offsetX, y: event.offsetY };
 
-    // Drag functionality for stickers
     if (currentSticker) {
         currentSticker.setPosition(nextPoint);
         renderCanvas();
@@ -167,7 +166,7 @@ const createToolButton = (text: string, thickness: number) => {
     button.textContent = text;
     button.addEventListener('click', () => {
         currentThickness = thickness;
-        currentEmoji = ''; // Deselect any emoji
+        currentEmoji = '';
         setCursor(thickness);
 
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
@@ -181,7 +180,7 @@ const createToolButton = (text: string, thickness: number) => {
 createToolButton('Thin', 8);
 createToolButton('Thick', 16);
 
-// Sticker Buttons that fire `tool-moved`
+// Create sticker buttons from array
 const createStickerButton = (emoji: string) => {
     const button = document.createElement('button');
     button.textContent = emoji;
@@ -192,7 +191,6 @@ const createStickerButton = (emoji: string) => {
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
         button.classList.add('selectedTool');
 
-        // Fire a custom "tool-moved" event
         const event = new CustomEvent('tool-moved');
         artCanvas.dispatchEvent(event);
     });
@@ -200,10 +198,20 @@ const createStickerButton = (emoji: string) => {
     app.append(button);
 };
 
-// Add stickers
-createStickerButton('😀');
-createStickerButton('🔥');
-createStickerButton('🌟');
+// Initialize predefined stickers
+stickers.forEach(createStickerButton);
+
+// Button to add a custom sticker
+const addStickerButton = document.createElement('button');
+addStickerButton.textContent = 'Add Sticker';
+addStickerButton.addEventListener('click', () => {
+    const newSticker = prompt('Enter your custom sticker:');
+    if (newSticker) {
+        stickers.push(newSticker);
+        createStickerButton(newSticker);
+    }
+});
+app.append(addStickerButton);
 
 // Clear Button
 const clearButton = document.createElement('button');
@@ -240,11 +248,8 @@ redoButton.addEventListener('click', () => {
 });
 app.append(redoButton);
 
-// Event listener for "tool-moved"
 artCanvas.addEventListener('tool-moved', () => {
-    // You can add custom logic here
     console.log('Tool moved event fired');
 });
 
-// Initialize default cursor
 setCursor(currentThickness);
