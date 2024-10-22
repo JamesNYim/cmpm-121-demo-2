@@ -21,16 +21,38 @@ app.append(artCanvas);
 type Point = { x: number, y: number };
 
 interface Drawable {
-    points: Point[];
-    drag(point: Point): void;
     display(ctx: CanvasRenderingContext2D): void;
 }
 
-function createMarkerLine(initialPoint: Point, thickness: number): Drawable {
+interface StickerCommand extends Drawable {
+    position: Point;
+    setPosition(point: Point): void;
+}
+
+// Factory to create a sticker on a given position
+function createSticker(emoji: string, position: Point): StickerCommand {
+    return {
+        position,
+        setPosition(point: Point) {
+            this.position = point;
+        },
+        display(ctx: CanvasRenderingContext2D) {
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, this.position.x, this.position.y);
+        }
+    };
+}
+
+interface MarkerLine extends Drawable {
+    drag(point: Point): void;
+}
+
+function createMarkerLine(initialPoint: Point, thickness: number): MarkerLine {
     const points: Point[] = [initialPoint];
 
     return {
-        points,
         drag(point: Point) {
             points.push(point);
         },
@@ -48,9 +70,11 @@ function createMarkerLine(initialPoint: Point, thickness: number): Drawable {
 }
 
 let strokes: Drawable[] = [];
-let currentStroke: Drawable | null = null;
+let currentStroke: MarkerLine | null = null;
+let currentSticker: StickerCommand | null = null;
 let redoStack: Drawable[] = [];
 let currentThickness = 1; // Default to a thin marker
+let currentEmoji = ''; // Tracks the currently selected emoji
 
 const ctx = artCanvas.getContext("2d");
 if (!ctx) {
@@ -67,18 +91,19 @@ const renderCanvas = () => {
     ctx.strokeStyle = 'black';
 
     strokes.forEach(stroke => stroke.display(ctx));
+    if (currentSticker) currentSticker.display(ctx);
 };
 
 // Function to create the square cursor image
 function createSquareCursor(thickness: number): string {
     const cursorCanvas = document.createElement('canvas');
-    cursorCanvas.width = thickness * 2; // Size reflects thickness
+    cursorCanvas.width = thickness * 2;
     cursorCanvas.height = thickness * 2;
     const cursorCtx = cursorCanvas.getContext('2d');
 
     if (cursorCtx) {
         cursorCtx.fillStyle = 'black';
-        cursorCtx.fillRect(0, 0, thickness * 2, thickness * 2); // Draw a filled square
+        cursorCtx.fillRect(0, 0, thickness * 2, thickness * 2);
     }
 
     return cursorCanvas.toDataURL('image/png');
@@ -98,19 +123,34 @@ const stopDrawing = () => {
         currentStroke = null;
         redoStack = [];
     }
+    if (currentSticker) {
+        strokes.push(currentSticker);
+        currentSticker = null;
+    }
     renderCanvas();
 };
 
 artCanvas.addEventListener('mousedown', (event: MouseEvent) => {
-    drawing = true;
-    const startPoint = { x: event.offsetX, y: event.offsetY };
-    currentStroke = createMarkerLine(startPoint, currentThickness);
-    ctx.beginPath();
-    ctx.moveTo(startPoint.x, startPoint.y);
+    const pointerPosition = { x: event.offsetX, y: event.offsetY };
+
+    if (currentEmoji) {
+        currentSticker = createSticker(currentEmoji, pointerPosition);
+    } else {
+        drawing = true;
+        currentStroke = createMarkerLine(pointerPosition, currentThickness);
+        ctx.beginPath();
+        ctx.moveTo(pointerPosition.x, pointerPosition.y);
+    }
 });
 
 artCanvas.addEventListener('mousemove', (event: MouseEvent) => {
     const nextPoint = { x: event.offsetX, y: event.offsetY };
+
+    // Drag functionality for stickers
+    if (currentSticker) {
+        currentSticker.setPosition(nextPoint);
+        renderCanvas();
+    }
 
     if (drawing && currentStroke) {
         currentStroke.drag(nextPoint);
@@ -127,6 +167,7 @@ const createToolButton = (text: string, thickness: number) => {
     button.textContent = text;
     button.addEventListener('click', () => {
         currentThickness = thickness;
+        currentEmoji = ''; // Deselect any emoji
         setCursor(thickness);
 
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
@@ -136,9 +177,35 @@ const createToolButton = (text: string, thickness: number) => {
     app.append(button);
 };
 
-createToolButton('Thin', 4);
-createToolButton('Thick', 8);
+// Create the tool buttons
+createToolButton('Thin', 8);
+createToolButton('Thick', 16);
 
+// Sticker Buttons that fire `tool-moved`
+const createStickerButton = (emoji: string) => {
+    const button = document.createElement('button');
+    button.textContent = emoji;
+    button.addEventListener('click', () => {
+        currentEmoji = emoji;
+        currentThickness = 0; // Unset thickness as a drawing variable
+
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
+        button.classList.add('selectedTool');
+
+        // Fire a custom "tool-moved" event
+        const event = new CustomEvent('tool-moved');
+        artCanvas.dispatchEvent(event);
+    });
+    button.classList.add('tool-button');
+    app.append(button);
+};
+
+// Add stickers
+createStickerButton('😀');
+createStickerButton('🔥');
+createStickerButton('🌟');
+
+// Clear Button
 const clearButton = document.createElement('button');
 clearButton.textContent = 'Clear';
 clearButton.addEventListener('click', () => {
@@ -149,6 +216,7 @@ clearButton.addEventListener('click', () => {
 });
 app.append(clearButton);
 
+// Undo Button
 const undoButton = document.createElement('button');
 undoButton.textContent = 'Undo';
 undoButton.addEventListener('click', () => {
@@ -160,6 +228,7 @@ undoButton.addEventListener('click', () => {
 });
 app.append(undoButton);
 
+// Redo Button
 const redoButton = document.createElement('button');
 redoButton.textContent = 'Redo';
 redoButton.addEventListener('click', () => {
@@ -171,5 +240,11 @@ redoButton.addEventListener('click', () => {
 });
 app.append(redoButton);
 
-// Set initial cursor
+// Event listener for "tool-moved"
+artCanvas.addEventListener('tool-moved', () => {
+    // You can add custom logic here
+    console.log('Tool moved event fired');
+});
+
+// Initialize default cursor
 setCursor(currentThickness);
