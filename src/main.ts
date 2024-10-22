@@ -18,8 +18,10 @@ artCanvas.height = 256;
 artCanvas.width = 256;
 app.append(artCanvas);
 
+// Point Structure
 type Point = { x: number, y: number };
 
+// Interfaces
 interface Drawable {
     display(ctx: CanvasRenderingContext2D): void;
 }
@@ -186,7 +188,7 @@ const createStickerButton = (emoji: string) => {
     button.textContent = emoji;
     button.addEventListener('click', () => {
         currentEmoji = emoji;
-        currentThickness = 0; // Unset thickness as a drawing variable
+        currentThickness = 0;
 
         document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('selectedTool'));
         button.classList.add('selectedTool');
@@ -212,6 +214,36 @@ addStickerButton.addEventListener('click', () => {
     }
 });
 app.append(addStickerButton);
+
+// Export Button
+const exportButton = document.createElement('button');
+exportButton.textContent = 'Export';
+exportButton.addEventListener('click', () => {
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = 1024;
+    exportCanvas.height = 1024;
+    const exportCtx = exportCanvas.getContext('2d');
+
+    if (exportCtx) {
+        exportCtx.fillStyle = 'white';
+        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        exportCtx.scale(4, 4); // Scale the drawings to fit the larger canvas
+
+        // Execute drawables on the new context
+        strokes.forEach(stroke => stroke.display(exportCtx));
+
+        // Create a file and trigger download
+        exportCanvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawing.png';
+            a.click();
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    }
+});
+app.append(exportButton);
 
 // Clear Button
 const clearButton = document.createElement('button');
