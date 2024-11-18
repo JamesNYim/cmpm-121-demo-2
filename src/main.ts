@@ -221,20 +221,15 @@ const createEmojiButton = (emoji: string) => {
 
 emojis.forEach(createEmojiButton);
 
-const addEmojiButton = document.createElement('button');
-addEmojiButton.textContent = 'Add Emoji';
-addEmojiButton.addEventListener('click', () => {
+function addCustomEmoji() {
     const newEmoji = prompt('Enter your custom emoji:');
     if (newEmoji) {
         emojis.push(newEmoji);
         createEmojiButton(newEmoji);
     }
-});
-app.append(addEmojiButton);
+}
 
-const exportButton = document.createElement('button');
-exportButton.textContent = 'Export';
-exportButton.addEventListener('click', () => {
+function exportCanvas() {
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = 1024;
     exportCanvas.height = 1024;
@@ -245,7 +240,7 @@ exportButton.addEventListener('click', () => {
         exportCtx.scale(4, 4);
         drawings.forEach(drawable => drawable.display(exportCtx));
         exportCanvas.toBlob(blob => {
-            const url = URL.createObjectURL(blob);
+            const url = URL.createObjectURL(blob!);
             const a = document.createElement('a');
             a.href = url;
             a.download = 'drawing.png';
@@ -253,40 +248,41 @@ exportButton.addEventListener('click', () => {
             URL.revokeObjectURL(url);
         }, 'image/png');
     }
-});
-app.append(exportButton);
+}
 
-const clearButton = document.createElement('button');
-clearButton.textContent = 'Clear';
-clearButton.addEventListener('click', () => {
-    drawings = [];
-    currentBrushStroke = null;
-    redoStack = [];
-    renderCanvas();
-});
-app.append(clearButton);
+function createAbilityButton(buttonText: string, ability: () => void) {
+    const button = document.createElement('button');
+    button.textContent = buttonText;
+    button.addEventListener('click', ability);
+    app.append(button);
+}
 
-const undoButton = document.createElement('button');
-undoButton.textContent = 'Undo';
-undoButton.addEventListener('click', () => {
-    if (drawings.length > 0) {
-        const lastDrawing = drawings.pop();
-        if (lastDrawing) redoStack.push(lastDrawing);
+const buttons = [
+    { text: 'Add Emoji', action: addCustomEmoji },
+    { text: 'Export', action: exportCanvas },
+    { text: 'Clear', action: () => {
+        drawings = [];
+        currentBrushStroke = null;
+        redoStack = [];
         renderCanvas();
-    }
-});
-app.append(undoButton);
+    }},
+    { text: 'Undo', action: () => {
+        if (drawings.length > 0) {
+            const lastDrawing = drawings.pop();
+            if (lastDrawing) redoStack.push(lastDrawing);
+            renderCanvas();
+        }
+    }},
+    { text: 'Redo', action: () => {
+        if (redoStack.length > 0) {
+            const drawingToRedo = redoStack.pop();
+            if (drawingToRedo) drawings.push(drawingToRedo);
+            renderCanvas();
+        }
+    }},
+]
 
-const redoButton = document.createElement('button');
-redoButton.textContent = 'Redo';
-redoButton.addEventListener('click', () => {
-    if (redoStack.length > 0) {
-        const drawingToRedo = redoStack.pop();
-        if (drawingToRedo) drawings.push(drawingToRedo);
-        renderCanvas();
-    }
-});
-app.append(redoButton);
+buttons.forEach(({ text, action }) => createAbilityButton(text, action));
 
 const colorPicker = document.createElement('input');
 colorPicker.type = 'color';
