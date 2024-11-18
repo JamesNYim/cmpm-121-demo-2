@@ -94,11 +94,13 @@ ctx.fillStyle = "white";
 ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
 
 function renderCanvas() {
-    ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
+    if (ctx) {
+        ctx.clearRect(0, 0, artCanvas.width, artCanvas.height);
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, artCanvas.width, artCanvas.height);
 
-    drawings.forEach(drawable => drawable.display(ctx));
+        drawings.forEach(drawable => drawable.display(ctx));
+    }
 }
 
 function createSquareCursor(thickness: number): string {
